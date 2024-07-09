@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "715422061304",
+    "project_id": "andriod-d2cc5",
+    "storage_bucket": "andriod-d2cc5.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:715422061304:android:5eaee9c517d28e1bc9e10d",
+        "android_client_info": {
+          "package_name": "com.example.grabify"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjKw94PlpkoYs3hOWl2QIVwwof1tPfE_c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
