@@ -7,9 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,16 +34,14 @@ class SignupActivity : ComponentActivity() {
                 SignupScreen(
                     onSubmit = { firstName, lastName, phoneNumber, email, address, password ->
                         val formattedPhoneNumber = "+91$phoneNumber"
-                        startPhoneNumberVerification(formattedPhoneNumber)
-                        val encryptedPassword = BCrypt.withDefaults().hashToString(12, password.toCharArray())
-                        saveUserToDatabase(firstName, lastName, formattedPhoneNumber, email, address, encryptedPassword)
+                        startPhoneNumberVerification(formattedPhoneNumber, firstName, lastName, email, address, password)
                     }
                 )
             }
         }
     }
 
-    private fun startPhoneNumberVerification(phoneNumber: String) {
+    private fun startPhoneNumberVerification(phoneNumber: String, firstName: String, lastName: String, email: String, address: String, password: String) {
         val options = PhoneAuthOptions.newBuilder(auth)
             .setPhoneNumber(phoneNumber)
             .setTimeout(60L, TimeUnit.SECONDS)
@@ -65,7 +61,7 @@ class SignupActivity : ComponentActivity() {
                 ) {
                     storedVerificationId = verificationId
                     resendToken = token
-                    navigateToOtpVerification(phoneNumber, verificationId)
+                    navigateToOtpVerification(phoneNumber, verificationId, firstName, lastName, email, address, password)
                 }
             })
             .build()
@@ -84,10 +80,15 @@ class SignupActivity : ComponentActivity() {
             }
     }
 
-    private fun navigateToOtpVerification(phoneNumber: String, verificationId: String) {
+    private fun navigateToOtpVerification(phoneNumber: String, verificationId: String, firstName: String, lastName: String, email: String, address: String, password: String) {
         val intent = Intent(this, OtpVerificationActivity::class.java)
         intent.putExtra("phoneNumber", phoneNumber)
         intent.putExtra("verificationId", verificationId)
+        intent.putExtra("firstName", firstName)
+        intent.putExtra("lastName", lastName)
+        intent.putExtra("email", email)
+        intent.putExtra("address", address)
+        intent.putExtra("password", password)
         startActivity(intent)
     }
 
@@ -96,31 +97,9 @@ class SignupActivity : ComponentActivity() {
         startActivity(intent)
         finish()
     }
-
-    private fun saveUserToDatabase(
-        firstName: String, lastName: String, phoneNumber: String, email: String, address: String, encryptedPassword: String
-    ) {
-        val user = mapOf(
-            "firstName" to firstName,
-            "lastName" to lastName,
-            "phoneNumber" to phoneNumber,
-            "email" to email,
-            "address" to address,
-            "password" to encryptedPassword
-        )
-        FirebaseDatabase.getInstance().reference
-            .child("users")
-            .child(phoneNumber)
-            .setValue(user)
-            .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    Toast.makeText(this, "User saved", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(this, "Failed to save user", Toast.LENGTH_SHORT).show()
-                }
-            }
-    }
 }
+
+
 
 @Composable
 fun SignupScreen(onSubmit: (String, String, String, String, String, String) -> Unit) {
@@ -138,6 +117,8 @@ fun SignupScreen(onSubmit: (String, String, String, String, String, String) -> U
     var addressError by remember { mutableStateOf(false) }
     var passwordError by remember { mutableStateOf(false) }
 
+    var isLoading by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
 
     Column(
@@ -147,107 +128,112 @@ fun SignupScreen(onSubmit: (String, String, String, String, String, String) -> U
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        OutlinedTextField(
-            value = firstName,
-            onValueChange = { firstName = it; firstNameError = false },
-            label = { Text("First Name") },
-            isError = firstNameError,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
+        if (isLoading) {
+            CircularProgressIndicator()
+        } else {
+            OutlinedTextField(
+                value = firstName,
+                onValueChange = { firstName = it; firstNameError = false },
+                label = { Text("First Name") },
+                isError = firstNameError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
 
-        OutlinedTextField(
-            value = lastName,
-            onValueChange = { lastName = it; lastNameError = false },
-            label = { Text("Last Name") },
-            isError = lastNameError,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
+            OutlinedTextField(
+                value = lastName,
+                onValueChange = { lastName = it; lastNameError = false },
+                label = { Text("Last Name") },
+                isError = lastNameError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
 
-        OutlinedTextField(
-            value = phoneNumber,
-            onValueChange = { phoneNumber = it; phoneNumberError = false },
-            label = { Text("Phone Number") },
-            isError = phoneNumberError,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
+            OutlinedTextField(
+                value = phoneNumber,
+                onValueChange = { phoneNumber = it; phoneNumberError = false },
+                label = { Text("Phone Number") },
+                isError = phoneNumberError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it; emailError = false },
-            label = { Text("Email") },
-            isError = emailError,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it; emailError = false },
+                label = { Text("Email") },
+                isError = emailError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
 
-        OutlinedTextField(
-            value = address,
-            onValueChange = { address = it; addressError = false },
-            label = { Text("Address") },
-            isError = addressError,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
+            OutlinedTextField(
+                value = address,
+                onValueChange = { address = it; addressError = false },
+                label = { Text("Address") },
+                isError = addressError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it; passwordError = false },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            isError = passwordError,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it; passwordError = false },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                isError = passwordError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
 
-        Button(
-            onClick = {
-                if (firstName.isEmpty()) firstNameError = true
-                if (lastName.isEmpty()) lastNameError = true
-                if (phoneNumber.isEmpty()) phoneNumberError = true
-                if (email.isEmpty()) emailError = true
-                if (address.isEmpty()) addressError = true
-                if (password.isEmpty()) passwordError = true
+            Button(
+                onClick = {
+                    if (firstName.isEmpty()) firstNameError = true
+                    if (lastName.isEmpty()) lastNameError = true
+                    if (phoneNumber.isEmpty()) phoneNumberError = true
+                    if (email.isEmpty()) emailError = true
+                    if (address.isEmpty()) addressError = true
+                    if (password.isEmpty()) passwordError = true
 
-                if (firstName.isNotEmpty() && lastName.isNotEmpty() && phoneNumber.isNotEmpty() &&
-                    email.isNotEmpty() && address.isNotEmpty() && password.isNotEmpty()
-                ) {
-                    onSubmit(firstName, lastName, phoneNumber, email, address, password)
-                } else {
-                    Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
-            Text("Submit")
+                    if (firstName.isNotEmpty() && lastName.isNotEmpty() && phoneNumber.isNotEmpty() &&
+                        email.isNotEmpty() && address.isNotEmpty() && password.isNotEmpty()
+                    ) {
+                        isLoading = true
+                        onSubmit(firstName, lastName, phoneNumber, email, address, password)
+                    } else {
+                        Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Text("Submit")
+            }
+
+            Text(
+                text = "Already have an account?",
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .fillMaxWidth(),
+                color = androidx.compose.ui.graphics.Color.Gray
+            )
+
+            Text(
+                text = "Sign-in",
+                modifier = Modifier
+                    .clickable {
+                        context.startActivity(Intent(context, LoginActivity::class.java))
+                    }
+                    .fillMaxWidth(),
+                color = androidx.compose.ui.graphics.Color.Blue
+            )
         }
-
-        Text(
-            text = "Already have an account?",
-            modifier = Modifier
-                .padding(top = 16.dp)
-                .fillMaxWidth(),
-            color = androidx.compose.ui.graphics.Color.Gray
-        )
-
-        Text(
-            text = "Sign-in",
-            modifier = Modifier
-                .clickable {
-                    context.startActivity(Intent(context, LoginActivity::class.java))
-                }
-                .fillMaxWidth(),
-            color = androidx.compose.ui.graphics.Color.Blue
-        )
     }
 }

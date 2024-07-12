@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -27,21 +28,34 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import at.favre.lib.crypto.bcrypt.BCrypt
 
+
 class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            var isLoading by remember { mutableStateOf(false) }
             GrabifyTheme {
                 LoginScreen(
                     onLogin = { phoneNumber, password ->
-                        loginUser(phoneNumber, password)
-                    }
+                        isLoading = true
+                        loginUser(phoneNumber, password) { success ->
+                            isLoading = false
+                            if (success) {
+                                val intent = Intent(this, WelcomeActivity::class.java)
+                                startActivity(intent)
+                                finish()
+                            } else {
+                                Toast.makeText(this, "Login failed", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    isLoading = isLoading
                 )
             }
         }
     }
 
-    private fun loginUser(phoneNumber: String, password: String) {
+    private fun loginUser(phoneNumber: String, password: String, callback: (Boolean) -> Unit) {
         val formattedPhoneNumber = "+91$phoneNumber"
         val database = FirebaseDatabase.getInstance().reference
         val userRef = database.child("users").child(formattedPhoneNumber)
@@ -52,25 +66,26 @@ class LoginActivity : ComponentActivity() {
                     val storedEncryptedPassword = snapshot.child("password").value as String
                     val result = BCrypt.verifyer().verify(password.toCharArray(), storedEncryptedPassword)
                     if (result.verified) {
-                        val intent = Intent(this@LoginActivity, WelcomeActivity::class.java)
-                        startActivity(intent)
-                        finish()
+                        callback(true)
                     } else {
+                        callback(false)
                         Toast.makeText(this@LoginActivity, "Incorrect password", Toast.LENGTH_SHORT).show()
                     }
                 } else {
+                    callback(false)
                     Toast.makeText(this@LoginActivity, "User not found", Toast.LENGTH_SHORT).show()
                 }
             }
 
             override fun onCancelled(error: DatabaseError) {
+                callback(false)
                 Toast.makeText(this@LoginActivity, "Database error: ${error.message}", Toast.LENGTH_SHORT).show()
             }
         })
     }
 }
 @Composable
-fun LoginScreen(onLogin: (String, String) -> Unit) {
+fun LoginScreen(onLogin: (String, String) -> Unit, isLoading: Boolean) {
     var phoneNumber by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -95,65 +110,69 @@ fun LoginScreen(onLogin: (String, String) -> Unit) {
                 .padding(bottom = 16.dp)
         )
 
+        if (isLoading) {
+            CircularProgressIndicator()
+        } else {
+            OutlinedTextField(
+                value = phoneNumber,
+                onValueChange = { phoneNumber = it; phoneNumberError = false },
+                label = { Text("Phone Number") },
+                isError = phoneNumberError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
+            if (phoneNumberError) {
+                Text("Please enter your phone number", color = MaterialTheme.colorScheme.error)
+            }
 
-        OutlinedTextField(
-            value = phoneNumber,
-            onValueChange = { phoneNumber = it; phoneNumberError = false },
-            label = { Text("Phone Number") },
-            isError = phoneNumberError,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
-        if (phoneNumberError) {
-            Text("Please enter your phone number", color = MaterialTheme.colorScheme.error)
-        }
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it; passwordError = false },
+                label = { Text("Password") },
+                visualTransformation = PasswordVisualTransformation(),
+                isError = passwordError,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
+            if (passwordError) {
+                Text("Please enter your password", color = MaterialTheme.colorScheme.error)
+            }
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it; passwordError = false },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            isError = passwordError,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        )
-        if (passwordError) {
-            Text("Please enter your password", color = MaterialTheme.colorScheme.error)
-        }
+            Button(
+                onClick = {
+                    if (phoneNumber.isEmpty()) phoneNumberError = true
+                    if (password.isEmpty()) passwordError = true
+                    if (phoneNumber.isNotEmpty() && password.isNotEmpty()) {
+                        onLogin(phoneNumber, password)
+                    } else {
+                        Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            ) {
+                Text("Login")
+            }
 
-        Button(
-            onClick = {
-                if (phoneNumber.isEmpty()) phoneNumberError = true
-                if (password.isEmpty()) passwordError = true
-                if (phoneNumber.isNotEmpty() && password.isNotEmpty()) {
-                    onLogin(phoneNumber, password)
-                } else {
-                    Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-        ) {
-            Text("Login")
+            Text(
+                text = "New to Grabify?",
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .fillMaxWidth(),
+                color = androidx.compose.ui.graphics.Color.Gray
+            )
+            Text(
+                text = "Sign-up",
+                modifier = Modifier
+                    .clickable {
+                        context.startActivity(Intent(context, SignupActivity::class.java))
+                    }
+                    .fillMaxWidth(),
+                color = androidx.compose.ui.graphics.Color.Blue
+            )
         }
-        Text(
-            text = "New to Grabify?",
-            modifier = Modifier
-                .padding(top = 16.dp)
-                .fillMaxWidth(),
-            color = androidx.compose.ui.graphics.Color.Gray
-        )
-        Text(
-            text = "Sign-up",
-            modifier = Modifier
-                .clickable {
-                    context.startActivity(Intent(context, SignupActivity::class.java))
-                }
-                .fillMaxWidth(),
-            color = androidx.compose.ui.graphics.Color.Blue
-        )
     }
 }
